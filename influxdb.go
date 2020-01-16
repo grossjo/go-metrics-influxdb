@@ -30,6 +30,10 @@ func InfluxDB(r metrics.Registry, d time.Duration, url, database, measurement, u
 	InfluxDBWithTags(r, d, url, database, measurement, username, password, map[string]string{}, align)
 }
 
+func InfluxDBHandler(r metrics.Registry, writer http.ResponseWriter, request *http.Request, d time.Duration, url, database, measurement, username, password string, align bool) {
+	InfluxDBWithTagsHandler(r, writer, request, d, url, database, measurement, username, password, map[string]string{}, align)
+}
+
 // InfluxDBWithTags starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
 func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, measurement, username, password string, tags map[string]string, align bool) {
 	u, err := uurl.Parse(url)
@@ -53,6 +57,41 @@ func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, measur
 		log.Printf("unable to make InfluxDB client. err=%v", err)
 		return
 	}
+
+	rep.run()
+}
+
+// InfluxDBWithTags starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
+func InfluxDBWithTagsHandler(r metrics.Registry, writer http.ResponseWriter, request *http.Request, d time.Duration, url, database, measurement, username, password string, tags map[string]string, align bool) {
+	u, err := uurl.Parse(url)
+	if err != nil {
+		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
+		return
+	}
+
+	rep := &reporter{
+		reg:         r,
+		interval:    d,
+		url:         *u,
+		database:    database,
+		measurement: measurement,
+		username:    username,
+		password:    password,
+		tags:        tags,
+		align:       align,
+	}
+	// remains to be tested
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	fmt.Fprintf(w, "{\n")
+	first := true
+	expvar.Do(func(kv expvar.KeyValue) {
+		if !first {
+			fmt.Fprintf(w, ",\n")
+		}
+		first = false
+		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
+	})
+	fmt.Fprintf(w, "\n}\n")
 
 	rep.run()
 }
